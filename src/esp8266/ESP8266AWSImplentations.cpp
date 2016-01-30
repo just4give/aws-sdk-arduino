@@ -1,59 +1,74 @@
 #include <stdio.h>
+
 /* application.h is Esp8266's standard library. Defines the Arduino String
  * object, the Arduino delay() procedure, and the Esp8266 TCPClient. */
 #include "Esp8266AWSImplementations.h"
 #include "DeviceIndependentInterfaces.h"
-#include <ESP8266WiFi.h>
 #include <string.h>
 
-int delayTime = 500;
-char* updateCurTime(void);
+char* getCurrentTime(void);
 
 Esp8266HttpClient::Esp8266HttpClient() {
 }
 
 char* Esp8266HttpClient::send(const char* request, const char* serverUrl, int port) {
 
-    WiFiClientSecure sclient;
-    Serial.println(serverUrl);
-    Serial.println(port);
+    Serial.print("Connecting to ");
+    Serial.print(serverUrl);
+    Serial.print(':');
+    Serial.print(port);
+    Serial.println();
     Serial.println(request);
-    Serial.println("");
-    Serial.println("");
 
-    //
-    String response = "";
+    String responseBuilder;
     if (sclient.connect(serverUrl, port)) {
 
         // Send the request
-        sclient.print(request);
+        sclient.println(request);
+        sclient.println();
 
-        // keep reading the response until it's finished
-        while(sclient.connected()) {
-          while(sclient.available()){
-            char c = sclient.read();
-            response.concat(c);
-            Serial.print('.');
+        int connectionTimeout = millis() + 5000;
+        Serial.print('*');
+        while (sclient.connected() == 0) {
+          if (connectionTimeout - millis() < 0) {
+            Serial.println(">>> Connection Timeout !");
+            sclient.stop();
+            return 0;
           }
-
-          // disconnect any open connections
-          sclient.stop();
         }
 
-    } else {
-        // connection was unsuccessful
+        int availableTimeout = millis() + 5000;
+        Serial.print('.');
+        while (sclient.available() == 0) {
+          if (availableTimeout - millis() < 0) {
+            Serial.println(">>> Client Timeout !");
+            sclient.stop();
+            return 0;
+          }
+        }
+
+        while(sclient.available()){
+          String line = sclient.readStringUntil('\r');
+          responseBuilder.concat(line);
+        }
+
         sclient.stop();
-        return "can't setup SSL connection";
+    } else {
+        sclient.stop();
+        /* Error connecting. */
+        return 0;
     }
 
-    // convert the string into a char and return
-    int len = response.length();
-    char* response_char = new char[len + 1]();
-    response.toCharArray(response_char, len + 1);
-    return response_char;
+    /* Copy responseBuilder into char* */
+    int len = responseBuilder.length();
+    char* response = new char[len + 1]();
+    responseBuilder.toCharArray(response, len + 1);
+
+    return response;
 }
 
 bool Esp8266HttpClient::usesCurl() {
+  
     /* Does not use curl command. */
     return false;
 }
@@ -62,7 +77,8 @@ Esp8266DateTimeProvider::Esp8266DateTimeProvider() {
 }
 
 const char* Esp8266DateTimeProvider::getDateTime() {
-    return updateCurTime();
+
+    return getCurrentTime();
 }
 bool Esp8266DateTimeProvider::syncTakesArg(void) {
     return true;
@@ -94,65 +110,58 @@ String getMonth(String sM) {
 ////////////////////////////////////
 // Scrape UTC Time from server
 ////////////////////////////////////
-char* updateCurTime(void) {
-    static int timeout_busy=0;
-    int ipos;
-    timeout_busy=0; //reset
+char* getCurrentTime(void) {
 
-    const char* timeServer = "aws.amazon.com";
+    int timeout_busy = 0;
 
-    // send a bad header on purpose, so we get a 400 with a DATE: timestamp
-    const char* timeServerGet = "GET example.com/ HTTP/1.1";
-    String utctime;
     String GmtDate;
-    static char dateStamp[20];
-    static char chBuf[200];
-    char utctimeraw[80];
-    char* dpos;
+    char* dateStamp = new char[15]();
 
-    WiFiClient client;
-    if (client.connect(timeServer, 80)) {
-        //Send Request
-        client.println(timeServerGet);
-        client.println();
-        while((!client.available())&&(timeout_busy++<5000)){
-          // Wait until the client sends some data
-          delay(1);
-        }
+    WiFiClient* client = new WiFiClient();;
+    if (client->connect("aws.amazon.com", 80)) {
+      
+      // send a bad header on purpose, so we get a 400 with a DATE: timestamp
+      char* timeServerGet = (char*)"GET example.com/ HTTP/1.1";
 
-        // kill client if timeout
-        if(timeout_busy>=5000) {
-            client.flush();
-            client.stop();
-            Serial.println("timeout receiving timeserver data\n");
-            return dateStamp;
-        }
+      //Send Request
+      client->println("GET example.com/ HTTP/1.1");
+      client->println("Connection: close");
+      client->println();
 
-        // read the http GET Response
-        String req2 = client.readString();
-        // Serial.println("");
-        // Serial.println("");
-        // Serial.print(req2);
-        // Serial.println("");
-        // Serial.println("");
-
-        // close connection
+      while((!client->available()) && (timeout_busy++ < 5000)){
+        // Wait until the client sends some data
         delay(1);
-        client.flush();
-        client.stop();
+      }
 
-        ipos = req2.indexOf("Date:");
-        if(ipos>0) {
-          GmtDate = req2.substring(ipos,ipos+35);
-          // Serial.println(GmtDate);
-          utctime = GmtDate.substring(18,22) + getMonth(GmtDate.substring(14,17)) + GmtDate.substring(11,13) + GmtDate.substring(23,25) + GmtDate.substring(26,28) + GmtDate.substring(29,31);
-          // Serial.println(utctime.substring(0,14));
-          utctime.substring(0,14).toCharArray(dateStamp, 20);
-        }
+      // kill client if timeout
+      if(timeout_busy >= 5000) {
+          client->flush();
+          client->stop();
+          Serial.println("timeout receiving timeserver data");
+          return dateStamp;
+      }
+
+      // read the http GET Response
+      String req2 = client->readString();
+
+      // close connection
+      delay(1);
+      client->flush();
+      client->stop();
+
+      int ipos = req2.indexOf("Date:");
+      if(ipos > 0) {
+        String gmtDate = req2.substring(ipos, ipos + 35);
+        String utctime = gmtDate.substring(18,22) + getMonth(gmtDate.substring(14,17)) + gmtDate.substring(11,13) + gmtDate.substring(23,25) + gmtDate.substring(26,28) + gmtDate.substring(29,31);
+        utctime.substring(0, 14).toCharArray(dateStamp, 15);
+      }
     }
     else {
-      Serial.println("did not connect to timeserver\n");
+      Serial.println("did not connect to timeserver");
     }
+
+    delete client;
     timeout_busy=0;     // reset timeout
+
     return dateStamp;   // Return latest or last good dateStamp
 }
