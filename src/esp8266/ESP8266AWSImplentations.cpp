@@ -6,6 +6,9 @@
 #include "DeviceIndependentInterfaces.h"
 #include <string.h>
 
+//SHA-1 fingerprint of the certificate from https://a2c6vtfn7g8m57-ats.iot.us-east-1.amazonaws.com/
+const char fingerprint[] ="A1 A6 78 C6 87 EB E9 CF A6 02 D0 14 4B E9 AB 21 27 7E 0A 0C";
+
 char* getCurrentTime(void);
 
 Esp8266HttpClient::Esp8266HttpClient() {
@@ -19,6 +22,7 @@ char* Esp8266HttpClient::send(const char* request, const char* serverUrl, int po
     Serial.print(port);
     Serial.println();
     Serial.println(request);
+    sclient.setFingerprint(fingerprint);
 
     String responseBuilder;
     if (sclient.connect(serverUrl, port)) {

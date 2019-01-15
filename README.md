@@ -1,3 +1,6 @@
+### This is fork from original project ### 
+* WiFiClientSecure.connect returns false. Added SHA-1 fingerprint to make it work *
+
 # Version 1 of the Experimental AWS SDK for Arduino
 
 An experimental SDK for contacting AWS Services on Arduino-compatible devices. Currently it supports Amazon DynamoDB, Amazon Kinesis and Amazon SNS. More services coming soon.
