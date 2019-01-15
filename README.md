@@ -1,4 +1,4 @@
-### This is fork from original project ### 
+### This is fork from https://github.com/heskew/aws-sdk-arduino project ### 
 * WiFiClientSecure.connect returns false. Added SHA-1 fingerprint to make it work *
 
 # Version 1 of the Experimental AWS SDK for Arduino
