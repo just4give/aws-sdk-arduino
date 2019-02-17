@@ -36,23 +36,25 @@ class AWSClient4 {
     /* The user's AWS Access Key ID for accessing the AWS Resource. */
     char* awsKeyID;
     /* GMT date in yyyyMMdd format. */
-    char awsDate[AWS_DATE_LEN4 + 1];
+    char* awsDate;
     /* GMT time in HHmmss format. */
-    char awsTime[AWS_TIME_LEN4 + 1];
+    char* awsTime;
 
-    /* The payload of the httprequest to be created */
-    MinimalString payload;
+    /* The payload length of the httprequest to be created */
+    uint payloadLength;
+
+    char* payloadHash;
 
     // /* Add the headers that will be signed to the headers array. Called before
     //  * createStringToSign. */
     // void initSignedHeaders();
     // /* Create the canonical request and the string to sign as described. Return
     //  * value must be deleted by caller. */
-    char* createStringToSign(char* canonical_request);
+    char* createStringToSign(const char* canonical_request);
     // /* Given the string to sign, create the signature (a 64-char cstring).
     //  * Return value must be deleted by caller. */
     char* createSignature(const char* toSign);
-    char* createRequestHeaders(char* signature);
+    char* createRequestHeaders(const char* signature);
     // /* Add the headers that will not be signed to the headers array. Called
     //  * after createSignature. */
     // void initUnsignedHeaders(const char* signature);
@@ -66,12 +68,11 @@ class AWSClient4 {
     // char* headersToRequest(void);
 
 protected:
-    char* method;
-    char* uri;
-    char* queryString;
-    char* headers;
-    char* signedHeaders;
-    char* payloadHash;
+    const char* method;
+    const char* uri;
+    const char* queryString;
+    const char* headers;
+    const char* signedHeaders;
 
     /* Used to keep track of time. */
     IDateTimeProvider* dateTimeProvider;
